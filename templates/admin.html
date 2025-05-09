@@ -4,7 +4,7 @@
     <meta charset="UTF-8">
     <title>Admin Panel - Hall Pass Tracker</title>
     <style>
-        table { border-collapse: collapse; width: 80%; margin: auto; }
+        table { border-collapse: collapse; width: 80%; margin: auto; margin-bottom: 40px; }
         th, td { border: 1px solid #333; padding: 8px; text-align: center; }
         button { padding: 5px 10px; }
     </style>
@@ -13,8 +13,15 @@
     <h1>Admin Panel</h1>
     <a href="{{ url_for('admin_logout') }}">Logout</a>
 
+    <h2>Create Admin Pass</h2>
+    <form id="create-pass-form">
+        <label for="student_id">Student ID:</label>
+        <input type="text" id="student_id" name="student_id" required>
+        <button type="submit">Create Admin Pass</button>
+    </form>
+
     <h2>Currently Active Passes</h2>
-    <table>
+    <table id="active-passes-table">
         <tr>
             <th>Pass ID</th>
             <th>Student ID</th>
@@ -23,18 +30,9 @@
             <th>Elapsed Time</th>
             <th>Action</th>
         </tr>
-        {% for pass in active_passes %}
-        <tr>
-            <td>{{ pass.pass_id }}</td>
-            <td>{{ pass.student_id }}</td>
-            <td>{{ pass.student_name }}</td>
-            <td>{{ pass.time_out }}</td>
-            <td><span id="timer-{{ pass.pass_id }}">0s</span></td>
-            <td><button onclick="manualCheckIn('{{ pass.pass_id }}')">Check In</button></td>
-        </tr>
-        {% endfor %}
     </table>
 
+    <!-- 📝 ADD BACK WEEKLY SUMMARY TABLE -->
     <h2>Weekly Summary</h2>
     <table>
         <tr>
@@ -56,37 +54,80 @@
     </table>
 
     <script>
-        const passTimes = {
-            {% for pass in active_passes %}
-                '{{ pass.pass_id }}': '{{ pass.time_out }}',
-            {% endfor %}
-        };
+        let passTimes = {};
+
+        function loadActivePasses() {
+            fetch('/admin_passes')
+                .then(res => res.json())
+                .then(data => {
+                    const table = document.getElementById('active-passes-table');
+                    while (table.rows.length > 1) table.deleteRow(1);
+                    passTimes = {};
+                    for (const pass of data) {
+                        const row = table.insertRow();
+                        const passIdLabel = (pass.pass_id === '3') ? 'Admin Pass 3' : pass.pass_id;
+                        row.insertCell().textContent = passIdLabel;
+                        row.insertCell().textContent = pass.student_id;
+                        row.insertCell().textContent = pass.student_name;
+                        row.insertCell().textContent = pass.time_out;
+                        const timerCell = row.insertCell();
+                        timerCell.id = `timer-${pass.pass_id}`;
+                        timerCell.textContent = '0s';
+                        const btnCell = row.insertCell();
+                        const btn = document.createElement('button');
+                        btn.textContent = 'Check In';
+                        btn.onclick = () => manualCheckIn(pass.pass_id);
+                        btnCell.appendChild(btn);
+                        passTimes[pass.pass_id] = pass.time_out;
+                    }
+                });
+        }
 
         function updateTimers() {
             const now = new Date();
-            for (const [passId, timeOut] of Object.entries(passTimes)) {
-                const [h, m, s] = timeOut.split(':').map(Number);
+            for (const [passId, timeOutStr] of Object.entries(passTimes)) {
+                const parts = timeOutStr.split(":").map(Number);
+                if (parts.length !== 3) continue;
                 const timeOutDate = new Date();
-                timeOutDate.setHours(h, m, s, 0);
+                timeOutDate.setHours(parts[0], parts[1], parts[2], 0);
                 let diff = Math.floor((now - timeOutDate) / 1000);
                 if (diff < 0) diff = 0;
                 const minutes = Math.floor(diff / 60);
                 const seconds = diff % 60;
-                document.getElementById('timer-' + passId).textContent =
-                    `${minutes}m ${seconds}s`;
+                const display = `${minutes}m ${seconds}s`;
+                const timerElem = document.getElementById(`timer-${passId}`);
+                if (timerElem) timerElem.textContent = display;
             }
         }
-        setInterval(updateTimers, 1000);
-        updateTimers();
 
         function manualCheckIn(passId) {
             fetch(`/admin_checkin/${passId}`, { method: 'POST' })
                 .then(res => res.json())
                 .then(data => {
                     alert(data.message);
-                    location.reload();
+                    loadActivePasses();
                 });
         }
+
+        document.getElementById('create-pass-form').addEventListener('submit', function(e) {
+            e.preventDefault();
+            const studentId = document.getElementById('student_id').value.trim();
+            fetch('/admin_create_pass', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ student_id: studentId })
+            })
+            .then(res => res.json())
+            .then(data => {
+                alert(data.message);
+                loadActivePasses();
+                this.reset();
+            });
+        });
+
+        setInterval(updateTimers, 1000);
+        setInterval(loadActivePasses, 5000);
+        loadActivePasses();
     </script>
 </body>
 </html>
