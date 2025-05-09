@@ -5,7 +5,7 @@ import datetime
 import os
 
 app = Flask(__name__)
-app.secret_key = '0012232344232'  # 🔑 required for sessions
+app.secret_key = 'Duck_Goon_Slap00'  # 🔑 required for sessions
 ADMIN_KEY = 'pass'  # set your admin password
 
 MASTERLIST_FILE = 'masterlist.csv'
@@ -54,7 +54,8 @@ passlog = load_passlog()
 
 passes = {
     '1': {'status': 'open', 'user': None, 'time_out': None},
-    '2': {'status': 'open', 'user': None, 'time_out': None}
+    '2': {'status': 'open', 'user': None, 'time_out': None},
+    '3': {'status': 'open', 'user': None, 'time_out': None}  # admin-only pass
 }
 
 @app.route('/')
@@ -102,17 +103,13 @@ def check():
                     if total_time < 0:
                         total_time = 0
 
-                    period_key = str(current_period)
                     student_key = str(student_id)
-
-                    if period_key not in passlog:
-                        passlog[period_key] = {}
-                    if student_key not in passlog[period_key]:
-                        passlog[period_key][student_key] = []
-
-                    passlog[period_key][student_key].append({
+                    if student_key not in passlog:
+                        passlog[student_key] = []
+                    passlog[student_key].append({
                         'Date': current_date,
                         'DayOfWeek': current_day,
+                        'Period': str(current_period),
                         'CheckoutTime': pass_data['time_out'],
                         'CheckinTime': checkin_time,
                         'TotalPassTime': total_time
@@ -158,6 +155,27 @@ def admin_view():
     if not session.get('logged_in'):
         return redirect(url_for('admin_login'))
 
+    weekly_summary = []
+    for student_id, records in passlog.items():
+        student_row = masterlist_df[masterlist_df['ID'] == int(student_id)]
+        student_name = student_row.iloc[0]['Name'] if not student_row.empty else 'Unknown'
+        total_passes = len(records)
+        total_time = sum(entry['TotalPassTime'] for entry in records)
+
+        weekly_summary.append({
+            'student_id': student_id,
+            'student_name': student_name,
+            'total_passes': total_passes,
+            'total_time': total_time
+        })
+
+    return render_template('admin.html', weekly_summary=weekly_summary)
+
+@app.route('/admin_passes')
+def admin_passes():
+    if not session.get('logged_in'):
+        return jsonify({'error': 'Unauthorized'}), 403
+
     active_passes = []
     for pass_id, pass_data in passes.items():
         if pass_data['status'] == 'in use':
@@ -170,23 +188,28 @@ def admin_view():
                 'time_out': pass_data['time_out']
             })
 
+    return jsonify(active_passes)
+
+@app.route('/admin_summary')
+def admin_summary():
+    if not session.get('logged_in'):
+        return jsonify({'error': 'Unauthorized'}), 403
+
     weekly_summary = []
-    for period_key, students in passlog.items():
-        for student_id, entries in students.items():
-            student_row = masterlist_df[masterlist_df['ID'] == int(student_id)]
-            student_name = student_row.iloc[0]['Name'] if not student_row.empty else 'Unknown'
-            total_passes = len(entries)
-            total_time = sum(entry['TotalPassTime'] for entry in entries)
+    for student_id, records in passlog.items():
+        student_row = masterlist_df[masterlist_df['ID'] == int(student_id)]
+        student_name = student_row.iloc[0]['Name'] if not student_row.empty else 'Unknown'
+        total_passes = len(records)
+        total_time = sum(entry['TotalPassTime'] for entry in records)
 
-            weekly_summary.append({
-                'period': period_key,
-                'student_id': student_id,
-                'student_name': student_name,
-                'total_passes': total_passes,
-                'total_time': total_time
-            })
+        weekly_summary.append({
+            'student_id': student_id,
+            'student_name': student_name,
+            'total_passes': total_passes,
+            'total_time': total_time
+        })
 
-    return render_template('admin.html', active_passes=active_passes, weekly_summary=weekly_summary)
+    return jsonify(weekly_summary)
 
 @app.route('/admin_checkin/<pass_id>', methods=['POST'])
 def admin_checkin(pass_id):
@@ -209,17 +232,14 @@ def admin_checkin(pass_id):
         total_time = 0
 
     current_period = get_current_period()
-    period_key = str(current_period)
+
     student_key = str(student_id)
-
-    if period_key not in passlog:
-        passlog[period_key] = {}
-    if student_key not in passlog[period_key]:
-        passlog[period_key][student_key] = []
-
-    passlog[period_key][student_key].append({
+    if student_key not in passlog:
+        passlog[student_key] = []
+    passlog[student_key].append({
         'Date': datetime.datetime.now().strftime('%Y-%m-%d'),
         'DayOfWeek': datetime.datetime.now().strftime('%A'),
+        'Period': str(current_period),
         'CheckoutTime': passes[pass_id]['time_out'],
         'CheckinTime': checkin_time,
         'TotalPassTime': total_time
@@ -229,6 +249,34 @@ def admin_checkin(pass_id):
     passes[pass_id] = {'status': 'open', 'user': None, 'time_out': None}
 
     return jsonify({'message': f'Pass {pass_id} manually checked in.'})
+
+@app.route('/admin_create_pass', methods=['POST'])
+def admin_create_pass():
+    if not session.get('logged_in'):
+        return jsonify({'message': 'Unauthorized'}), 403
+
+    data = request.get_json()
+    student_id = data.get('student_id')
+
+    try:
+        student_row = masterlist_df[masterlist_df['ID'] == int(student_id)]
+    except ValueError:
+        return jsonify({'message': 'Invalid ID format.'})
+
+    if student_row.empty:
+        return jsonify({'message': 'Student ID not found.'})
+
+    if passes['3']['status'] == 'in use':
+        return jsonify({'message': 'Admin pass is already in use.'})
+
+    checkout_time = datetime.datetime.now().strftime('%H:%M:%S')
+    passes['3'] = {
+        'status': 'in use',
+        'user': student_id,
+        'time_out': checkout_time
+    }
+
+    return jsonify({'message': f'Admin Pass 3 created for Student ID {student_id}.'})
 
 if __name__ == '__main__':
     app.run(host='0.0.0.0', port=5000, debug=True)

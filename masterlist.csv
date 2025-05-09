@@ -1,11 +1,12 @@
 ID,Name,Course,Period
 12345,John Smith,STEM 7,1
 23456,Jane Doe,STEM 8,2
-69699,Jim,STEM 8,2
-34567,Mike Brown,STEM 6,4.5
+69699,Jim,STEM 8,4.5
+70000,Mike Brown,STEM 6,4.5
 45678,Alice Green,STEM 7,5.6
 56789,Bob White,STEM 8,6.7
 67890,Eva Black,STEM 7,7.8
+67891,Eva White,STEM 7,7.8
 78901,Cara Gray,STEM 7,9
 89012,Dan Fox,STEM 8,10
 90123,Emily King,STEM 6,11
