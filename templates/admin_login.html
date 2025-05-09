@@ -2,6 +2,7 @@
 <html lang="en">
 <head>
     <meta charset="UTF-8">
+    <link rel="icon" type="image/png" href="{{ logo_url }}">
     <title>Admin Login</title>
     <style>
         /* center page styling */
@@ -21,8 +22,9 @@
 
     <!-- password entry form -->
     <form method="POST">
-        <input type="password" name="password" placeholder="Enter admin password" required>
-        <button type="submit">Login</button>
+    <input type="text" name="username" placeholder="Enter admin username" required><br><br>
+    <input type="password" name="password" placeholder="Enter admin password" required><br><br>
+    <button type="submit">Login</button>
     </form>
 </body>
 </html>
