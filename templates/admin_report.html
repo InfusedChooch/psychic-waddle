@@ -4,15 +4,19 @@
     <meta charset="UTF-8">
     <title>Weekly Report</title>
     <style>
+        /* report table styling */
         table { border-collapse: collapse; width: 90%; margin: auto; margin-bottom: 40px; }
         th, td { border: 1px solid #333; padding: 8px; text-align: center; }
     </style>
 </head>
 
+<!-- button to download CSV version of report -->
 <p><button onclick="window.location.href='{{ url_for('admin_report_csv') }}'">Download CSV</button></p>
 
 <body>
     <h1>Weekly Pass Report</h1>
+
+    <!-- summary report table -->
     <table>
         <tr>
             <th>Student Name</th>

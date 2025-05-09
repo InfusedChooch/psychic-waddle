@@ -4,6 +4,7 @@
     <meta charset="UTF-8">
     <title>Admin Panel - Hall Pass Tracker</title>
     <style>
+        /* table styling */
         table { border-collapse: collapse; width: 80%; margin: auto; margin-bottom: 40px; }
         th, td { border: 1px solid #333; padding: 8px; text-align: center; }
         button { padding: 5px 10px; }
@@ -12,11 +13,13 @@
 </head>
 <body>
     <h1>Admin Panel</h1>
+
+    <!-- navigation links -->
     <a href="{{ url_for('admin_logout') }}">Logout</a> |
     <a href="{{ url_for('admin_report') }}">View Weekly Report</a> |
     <a href="#" onclick="manualRefresh()">Refresh All</a>
 
-    <!-- Create Admin Pass -->
+    <!-- form to create an admin pass -->
     <h2>Create Admin Pass</h2>
     <form id="create-pass-form">
         <label for="student_id">Student ID:</label>
@@ -24,7 +27,7 @@
         <button type="submit">Create Admin Pass</button>
     </form>
 
-    <!-- Active Passes -->
+    <!-- shows all currently active passes -->
     <h2>Currently Active Passes</h2>
     <table id="active-passes-table">
         <tr>
@@ -38,7 +41,7 @@
         </tr>
     </table>
 
-    <!-- Weekly Summary -->
+    <!-- weekly summary table -->
     <h2>Weekly Summary</h2>
     <table>
         <tr>
@@ -61,7 +64,7 @@
         {% endfor %}
     </table>
 
-    <!-- Audit Log -->
+    <!-- audit log of last 5 failed attempts -->
     <h2>Audit Log (Last 5 Failed Attempts)</h2>
     <table>
         <tr>
@@ -78,7 +81,7 @@
         {% endfor %}
     </table>
 
-    <!-- Change Password moved to bottom -->
+    <!-- admin password change form -->
     <h2>Change Admin Password</h2>
     <form id="change-password-form">
         <label>Current Password:</label><input type="password" id="current_pass">
@@ -88,6 +91,7 @@
     </form>
     <p id="password-msg"></p>
 
+    <!-- JavaScript to handle live updates of active passes and timers -->
     <script>
         let passTimes = {};
 

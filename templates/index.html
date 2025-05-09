@@ -1,30 +1,44 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
+    <!-- Basic HTML metadata -->
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Hall Pass Tracker</title>
+
+    <!-- CSS styles: layout for the passes, buttons, input fields -->
     <style>
+        /* overall body styling */
         body { font-family: Arial, sans-serif; background: #fff; margin: 0; padding: 0; text-align: center; }
         h1 { font-size: 2.5em; margin-top: 20px; }
+
+        /* pass boxes displayed horizontally */
         .passes { display: flex; justify-content: center; gap: 50px; margin: 30px; }
         .pass-box { width: 150px; height: 150px; border: 3px solid #333; border-radius: 10px; display: flex; justify-content: center; align-items: center; flex-direction: column; font-size: 1.2em; position: relative; }
+        
+        /* color coding: free vs occupied pass */
         .pass-box.free { background-color: #d4f5d4; }
         .pass-box.occupied { background-color: #f7d4d4; }
+
         .pass-box .symbol { font-size: 4em; }
         .pass-box .status-text { margin-top: 10px; }
+
+        /* form styling */
         form { margin-top: 30px; }
         label { display: block; margin-bottom: 10px; font-weight: bold; font-size: 1.1em; }
         input[type="text"] { padding: 10px; font-size: 1em; width: 200px; border: 2px solid #333; border-radius: 5px; }
         button { padding: 10px 20px; font-size: 1em; background: #4a90e2; color: white; border: none; border-radius: 5px; margin-left: 10px; cursor: pointer; }
         button:hover { background: #357ab8; }
+
         .clock { font-size: 2.5em; margin-top: 40px; }
         .message { margin-top: 20px; font-weight: bold; }
     </style>
 </head>
 <body>
+    <!-- page title shows current period number -->
     <h1>Period #{{ current_period if current_period is not none else 'N/A' }} Hall Pass</h1>
 
+    <!-- pass status boxes (generated for each pass except admin pass) -->
     <div class="passes">
         {% for pass_id, pass_data in passes.items() %}
             {% if pass_id != '3' %}
@@ -43,16 +57,20 @@
         {% endfor %}
     </div>
 
+    <!-- input form for students to enter their ID -->
     <form id="check-form">
         <label for="student_id">Type your Student ID #</label>
         <input type="text" id="student_id" name="student_id" required>
         <button type="submit">ENTER</button>
     </form>
 
+    <!-- placeholder for feedback messages -->
     <p class="message" id="message"></p>
 
+    <!-- digital clock -->
     <div class="clock" id="clock">Loading time...</div>
 
+    <!-- JavaScript: handles updating the clock and refreshing pass status from server -->
     <script>
         function updateClock() {
             const now = new Date();
