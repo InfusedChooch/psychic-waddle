@@ -1,10 +1,12 @@
-from flask import Flask, render_template, request, jsonify
+from flask import Flask, render_template, request, redirect, url_for, session, jsonify
 import pandas as pd
 import json
 import datetime
 import os
 
 app = Flask(__name__)
+app.secret_key = '0012232344232'  # 🔑 required for sessions
+ADMIN_KEY = 'pass'  # set your admin password
 
 MASTERLIST_FILE = 'masterlist.csv'
 PASSLOG_FILE = 'passlog.json'
@@ -17,8 +19,8 @@ PERIOD_SCHEDULE = {
     2: {'start': '09:18', 'end': '10:00'},
     3: {'start': '10:03', 'end': '10:45'},
     4.5: {'start': '10:48', 'end': '11:30'},
-    5.6: {'start': '11:18', 'end': '12:00'},
-    6.7: {'start': '11:33', 'end': '12:15'},
+   # 5.6: {'start': '11:18', 'end': '12:00'},
+   # 6.7: {'start': '11:33', 'end': '12:15'},
     7.8: {'start': '12:03', 'end': '12:45'},
     9: {'start': '12:48', 'end': '13:30'},
     10: {'start': '13:33', 'end': '14:15'},
@@ -136,8 +138,26 @@ def check():
 
     return jsonify({'message': message})
 
+@app.route('/admin_login', methods=['GET', 'POST'])
+def admin_login():
+    if request.method == 'POST':
+        if request.form['password'] == ADMIN_KEY:
+            session['logged_in'] = True
+            return redirect(url_for('admin_view'))
+        else:
+            return render_template('admin_login.html', error='Incorrect password.')
+    return render_template('admin_login.html')
+
+@app.route('/admin_logout')
+def admin_logout():
+    session.pop('logged_in', None)
+    return redirect(url_for('admin_login'))
+
 @app.route('/admin')
 def admin_view():
+    if not session.get('logged_in'):
+        return redirect(url_for('admin_login'))
+
     active_passes = []
     for pass_id, pass_data in passes.items():
         if pass_data['status'] == 'in use':
@@ -167,6 +187,48 @@ def admin_view():
             })
 
     return render_template('admin.html', active_passes=active_passes, weekly_summary=weekly_summary)
+
+@app.route('/admin_checkin/<pass_id>', methods=['POST'])
+def admin_checkin(pass_id):
+    if not session.get('logged_in'):
+        return jsonify({'message': 'Unauthorized'}), 403
+
+    if pass_id not in passes or passes[pass_id]['status'] != 'in use':
+        return jsonify({'message': f'Pass {pass_id} is not currently out.'})
+
+    student_id = passes[pass_id]['user']
+    checkin_time = datetime.datetime.now().strftime('%H:%M:%S')
+    today_date = datetime.datetime.now().date()
+    time_out_dt = datetime.datetime.combine(
+        today_date,
+        datetime.datetime.strptime(passes[pass_id]['time_out'], '%H:%M:%S').time()
+    )
+    time_in_dt = datetime.datetime.now()
+    total_time = int((time_in_dt - time_out_dt).total_seconds())
+    if total_time < 0:
+        total_time = 0
+
+    current_period = get_current_period()
+    period_key = str(current_period)
+    student_key = str(student_id)
+
+    if period_key not in passlog:
+        passlog[period_key] = {}
+    if student_key not in passlog[period_key]:
+        passlog[period_key][student_key] = []
+
+    passlog[period_key][student_key].append({
+        'Date': datetime.datetime.now().strftime('%Y-%m-%d'),
+        'DayOfWeek': datetime.datetime.now().strftime('%A'),
+        'CheckoutTime': passes[pass_id]['time_out'],
+        'CheckinTime': checkin_time,
+        'TotalPassTime': total_time
+    })
+    save_passlog(passlog)
+
+    passes[pass_id] = {'status': 'open', 'user': None, 'time_out': None}
+
+    return jsonify({'message': f'Pass {pass_id} manually checked in.'})
 
 if __name__ == '__main__':
     app.run(host='0.0.0.0', port=5000, debug=True)

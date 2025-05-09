@@ -2,20 +2,26 @@
 <html lang="en">
 <head>
     <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Admin Panel - Hall Pass Tracker</title>
-    <link rel="stylesheet" href="/static/style.css">
+    <style>
+        table { border-collapse: collapse; width: 80%; margin: auto; }
+        th, td { border: 1px solid #333; padding: 8px; text-align: center; }
+        button { padding: 5px 10px; }
+    </style>
 </head>
 <body>
     <h1>Admin Panel</h1>
+    <a href="{{ url_for('admin_logout') }}">Logout</a>
 
     <h2>Currently Active Passes</h2>
-    <table border="1">
+    <table>
         <tr>
             <th>Pass ID</th>
             <th>Student ID</th>
             <th>Student Name</th>
             <th>Time Out</th>
+            <th>Elapsed Time</th>
+            <th>Action</th>
         </tr>
         {% for pass in active_passes %}
         <tr>
@@ -23,13 +29,16 @@
             <td>{{ pass.student_id }}</td>
             <td>{{ pass.student_name }}</td>
             <td>{{ pass.time_out }}</td>
+            <td><span id="timer-{{ pass.pass_id }}">0s</span></td>
+            <td><button onclick="manualCheckIn('{{ pass.pass_id }}')">Check In</button></td>
         </tr>
         {% endfor %}
     </table>
 
     <h2>Weekly Summary</h2>
-    <table border="1">
+    <table>
         <tr>
+            <th>Period</th>
             <th>Student ID</th>
             <th>Student Name</th>
             <th>Total Passes</th>
@@ -37,6 +46,7 @@
         </tr>
         {% for summary in weekly_summary %}
         <tr>
+            <td>{{ summary.period }}</td>
             <td>{{ summary.student_id }}</td>
             <td>{{ summary.student_name }}</td>
             <td>{{ summary.total_passes }}</td>
@@ -45,5 +55,38 @@
         {% endfor %}
     </table>
 
+    <script>
+        const passTimes = {
+            {% for pass in active_passes %}
+                '{{ pass.pass_id }}': '{{ pass.time_out }}',
+            {% endfor %}
+        };
+
+        function updateTimers() {
+            const now = new Date();
+            for (const [passId, timeOut] of Object.entries(passTimes)) {
+                const [h, m, s] = timeOut.split(':').map(Number);
+                const timeOutDate = new Date();
+                timeOutDate.setHours(h, m, s, 0);
+                let diff = Math.floor((now - timeOutDate) / 1000);
+                if (diff < 0) diff = 0;
+                const minutes = Math.floor(diff / 60);
+                const seconds = diff % 60;
+                document.getElementById('timer-' + passId).textContent =
+                    `${minutes}m ${seconds}s`;
+            }
+        }
+        setInterval(updateTimers, 1000);
+        updateTimers();
+
+        function manualCheckIn(passId) {
+            fetch(`/admin_checkin/${passId}`, { method: 'POST' })
+                .then(res => res.json())
+                .then(data => {
+                    alert(data.message);
+                    location.reload();
+                });
+        }
+    </script>
 </body>
 </html>

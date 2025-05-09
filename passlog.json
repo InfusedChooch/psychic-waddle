@@ -19,6 +19,22 @@
                 "CheckinTime": "11:00:00",
                 "TotalPassTime": 600
             }
+        ],
+        "69699": [
+            {
+                "Date": "2025-05-09",
+                "DayOfWeek": "Friday",
+                "CheckoutTime": "10:51:56",
+                "CheckinTime": "10:52:15",
+                "TotalPassTime": 19
+            },
+            {
+                "Date": "2025-05-09",
+                "DayOfWeek": "Friday",
+                "CheckoutTime": "10:52:29",
+                "CheckinTime": "10:52:50",
+                "TotalPassTime": 21
+            }
         ]
     },
     "6.7": {
@@ -58,6 +74,59 @@
                 "CheckoutTime": "09:45:59",
                 "CheckinTime": "09:46:20",
                 "TotalPassTime": 39
+            }
+        ]
+    },
+    "3": {
+        "69699": [
+            {
+                "Date": "2025-05-09",
+                "DayOfWeek": "Friday",
+                "CheckoutTime": "10:10:39",
+                "CheckinTime": "10:10:53",
+                "TotalPassTime": 14
+            },
+            {
+                "Date": "2025-05-09",
+                "DayOfWeek": "Friday",
+                "CheckoutTime": "10:12:04",
+                "CheckinTime": "10:12:07",
+                "TotalPassTime": 3
+            },
+            {
+                "Date": "2025-05-09",
+                "DayOfWeek": "Friday",
+                "CheckoutTime": "10:12:10",
+                "CheckinTime": "10:12:16",
+                "TotalPassTime": 6
+            },
+            {
+                "Date": "2025-05-09",
+                "DayOfWeek": "Friday",
+                "CheckoutTime": "10:19:49",
+                "CheckinTime": "10:19:56",
+                "TotalPassTime": 7
+            },
+            {
+                "Date": "2025-05-09",
+                "DayOfWeek": "Friday",
+                "CheckoutTime": "10:20:50",
+                "CheckinTime": "10:21:07",
+                "TotalPassTime": 17
+            },
+            {
+                "Date": "2025-05-09",
+                "DayOfWeek": "Friday",
+                "CheckoutTime": "10:31:28",
+                "CheckinTime": "10:31:41",
+                "TotalPassTime": 13
+            },
+            {
+                "Date": "2025-05-09",
+                "DayOfWeek": "Friday",
+                "CheckoutTime": "10:35:31",
+                "CheckinTime": "10:35:52",
+                "TotalPassTime": 21
             }
         ]
     }
