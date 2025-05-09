@@ -1,0 +1,33 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Hall Pass Tracker</title>
+    <link rel="stylesheet" href="/static/style.css">
+</head>
+<body>
+    <h1>Hall Pass - Period #{{ current_period if current_period is not none else 'N/A' }}</h1>
+
+    <div class="pass-status">
+        {% for pass_id, pass_data in passes.items() %}
+            <div class="pass {{ 'occupied' if pass_data['status'] == 'in use' else 'open' }}">
+                <h2>Pass {{ pass_id }}</h2>
+                {% if pass_data['status'] == 'in use' %}
+                    <p>OUT @ {{ pass_data['time_out'] }}</p>
+                {% else %}
+                    <p>AVAILABLE</p>
+                {% endif %}
+            </div>
+        {% endfor %}
+    </div>
+
+    <form method="POST">
+        <label for="student_id">Enter Student ID:</label>
+        <input type="text" id="student_id" name="student_id" required>
+        <button type="submit">Enter</button>
+    </form>
+
+    <p class="message">{{ message }}</p>
+</body>
+</html>

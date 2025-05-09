@@ -1,0 +1,49 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Admin Panel - Hall Pass Tracker</title>
+    <link rel="stylesheet" href="/static/style.css">
+</head>
+<body>
+    <h1>Admin Panel</h1>
+
+    <h2>Currently Active Passes</h2>
+    <table border="1">
+        <tr>
+            <th>Pass ID</th>
+            <th>Student ID</th>
+            <th>Student Name</th>
+            <th>Time Out</th>
+        </tr>
+        {% for pass in active_passes %}
+        <tr>
+            <td>{{ pass.pass_id }}</td>
+            <td>{{ pass.student_id }}</td>
+            <td>{{ pass.student_name }}</td>
+            <td>{{ pass.time_out }}</td>
+        </tr>
+        {% endfor %}
+    </table>
+
+    <h2>Weekly Summary</h2>
+    <table border="1">
+        <tr>
+            <th>Student ID</th>
+            <th>Student Name</th>
+            <th>Total Passes</th>
+            <th>Total Time (seconds)</th>
+        </tr>
+        {% for summary in weekly_summary %}
+        <tr>
+            <td>{{ summary.student_id }}</td>
+            <td>{{ summary.student_name }}</td>
+            <td>{{ summary.total_passes }}</td>
+            <td>{{ summary.total_time }}</td>
+        </tr>
+        {% endfor %}
+    </table>
+
+</body>
+</html>
