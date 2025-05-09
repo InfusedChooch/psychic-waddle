@@ -7,13 +7,16 @@
         table { border-collapse: collapse; width: 80%; margin: auto; margin-bottom: 40px; }
         th, td { border: 1px solid #333; padding: 8px; text-align: center; }
         button { padding: 5px 10px; }
+        input[type="text"], input[type="password"] { padding: 5px; width: 150px; }
     </style>
 </head>
 <body>
     <h1>Admin Panel</h1>
     <a href="{{ url_for('admin_logout') }}">Logout</a> |
-    <a href="{{ url_for('admin_report') }}">View Weekly Report</a>
+    <a href="{{ url_for('admin_report') }}">View Weekly Report</a> |
+    <a href="#" onclick="manualRefresh()">Refresh All</a>
 
+    <!-- Create Admin Pass -->
     <h2>Create Admin Pass</h2>
     <form id="create-pass-form">
         <label for="student_id">Student ID:</label>
@@ -21,6 +24,7 @@
         <button type="submit">Create Admin Pass</button>
     </form>
 
+    <!-- Active Passes -->
     <h2>Currently Active Passes</h2>
     <table id="active-passes-table">
         <tr>
@@ -29,10 +33,12 @@
             <th>Student Name</th>
             <th>Time Out</th>
             <th>Elapsed Time</th>
+            <th>Note</th>
             <th>Action</th>
         </tr>
     </table>
 
+    <!-- Weekly Summary -->
     <h2>Weekly Summary</h2>
     <table>
         <tr>
@@ -55,31 +61,74 @@
         {% endfor %}
     </table>
 
+    <!-- Audit Log -->
+    <h2>Audit Log (Last 5 Failed Attempts)</h2>
+    <table>
+        <tr>
+            <th>Time</th>
+            <th>Student ID</th>
+            <th>Reason</th>
+        </tr>
+        {% for log in audit_log[-5:] %}
+        <tr>
+            <td>{{ log.time }}</td>
+            <td>{{ log.student_id }}</td>
+            <td>{{ log.reason }}</td>
+        </tr>
+        {% endfor %}
+    </table>
+
+    <!-- Change Password moved to bottom -->
+    <h2>Change Admin Password</h2>
+    <form id="change-password-form">
+        <label>Current Password:</label><input type="password" id="current_pass">
+        <label>New Password:</label><input type="password" id="new_pass">
+        <label>Confirm New Password:</label><input type="password" id="confirm_pass">
+        <button type="submit">Change Password</button>
+    </form>
+    <p id="password-msg"></p>
+
     <script>
         let passTimes = {};
 
         function loadActivePasses() {
+            const savedNotes = {};
+            document.querySelectorAll('[id^=note-]').forEach(input => {
+                savedNotes[input.id] = input.value;
+            });
+
             fetch('/admin_passes')
                 .then(res => res.json())
                 .then(data => {
                     const table = document.getElementById('active-passes-table');
                     while (table.rows.length > 1) table.deleteRow(1);
                     passTimes = {};
+
                     for (const pass of data) {
                         const row = table.insertRow();
-                        const passIdLabel = (pass.pass_id === '3') ? 'Admin Pass 3' : pass.pass_id;
-                        row.insertCell().textContent = passIdLabel;
+                        row.insertCell().textContent = pass.pass_id;
                         row.insertCell().textContent = pass.student_id;
                         row.insertCell().textContent = pass.student_name;
                         row.insertCell().textContent = pass.time_out;
+
                         const timerCell = row.insertCell();
                         timerCell.id = `timer-${pass.pass_id}`;
                         timerCell.textContent = '0s';
+
+                        const noteCell = row.insertCell();
+                        const noteId = `note-${pass.pass_id}`;
+                        const savedVal = savedNotes[noteId] || '';
+                        noteCell.innerHTML = `
+                            <input type="text" id="${noteId}" value="${savedVal}" placeholder="Add note">
+                            <button onclick="addNote('${pass.student_id}', '${pass.pass_id}')">Save</button>
+                        `;
+
                         const btnCell = row.insertCell();
                         const btn = document.createElement('button');
                         btn.textContent = 'Check In';
                         btn.onclick = () => manualCheckIn(pass.pass_id);
                         btnCell.appendChild(btn);
+
                         passTimes[pass.pass_id] = pass.time_out;
                     }
                 });
@@ -88,12 +137,12 @@
         function updateTimers() {
             const now = new Date();
             for (const [passId, timeOutStr] of Object.entries(passTimes)) {
-                const parts = timeOutStr.split(":").map(Number);
+                const parts = timeOutStr.split(':').map(Number);
                 if (parts.length !== 3) continue;
                 const timeOutDate = new Date();
                 timeOutDate.setHours(parts[0], parts[1], parts[2], 0);
                 let diff = Math.floor((now - timeOutDate) / 1000);
-                if (diff < 0) diff = 0;
+                diff = Math.max(diff, 0);
                 const minutes = Math.floor(diff / 60);
                 const seconds = diff % 60;
                 const display = `${minutes}m ${seconds}s`;
@@ -111,6 +160,19 @@
                 });
         }
 
+        function addNote(studentId, passId) {
+            const note = document.getElementById(`note-${passId}`).value;
+            fetch(`/admin_add_note/${studentId}`, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ note: note })
+            })
+            .then(res => res.json())
+            .then(data => {
+                alert(data.message);
+            });
+        }
+
         document.getElementById('create-pass-form').addEventListener('submit', function(e) {
             e.preventDefault();
             const studentId = document.getElementById('student_id').value.trim();
@@ -126,6 +188,31 @@
                 this.reset();
             });
         });
+
+        document.getElementById('change-password-form').addEventListener('submit', function(e) {
+            e.preventDefault();
+            const currentPass = document.getElementById('current_pass').value;
+            const newPass = document.getElementById('new_pass').value;
+            const confirmPass = document.getElementById('confirm_pass').value;
+            fetch('/admin_change_password', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                    current_password: currentPass,
+                    new_password: newPass,
+                    confirm_password: confirmPass
+                })
+            })
+            .then(res => res.json())
+            .then(data => {
+                document.getElementById('password-msg').textContent = data.message;
+                if (data.success) this.reset();
+            });
+        });
+
+        function manualRefresh() {
+            location.reload();
+        }
 
         setInterval(updateTimers, 1000);
         setInterval(loadActivePasses, 5000);

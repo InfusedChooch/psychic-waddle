@@ -1,15 +1,18 @@
-from flask import Flask, render_template, request, redirect, url_for, session, jsonify
+from flask import Flask, render_template, request, redirect, url_for, session, jsonify, Response
 import pandas as pd
 import json
 import datetime
 import os
+import io
+import csv
 
 app = Flask(__name__)
-app.secret_key = 'Duck_Goon_Slap00'  # 🔑 required for sessions
-ADMIN_KEY = 'pass'  # set your admin password
+app.secret_key = 'Duck_Goon_Slap00'
 
 MASTERLIST_FILE = 'masterlist.csv'
 PASSLOG_FILE = 'passlog.json'
+AUDITLOG_FILE = 'auditlog.json'
+CONFIG_FILE = 'config.json'
 
 masterlist_df = pd.read_csv(MASTERLIST_FILE)
 
@@ -36,32 +39,40 @@ def get_current_period():
             return period
     return None
 
-def load_passlog():
-    if os.path.exists(PASSLOG_FILE):
-        with open(PASSLOG_FILE, 'r') as f:
+def load_json_file(filepath, default_value):
+    if os.path.exists(filepath):
+        with open(filepath, 'r') as f:
             try:
                 return json.load(f)
             except json.JSONDecodeError:
-                return {}
-    else:
-        return {}
+                return default_value
+    return default_value
 
-def save_passlog(data):
-    with open(PASSLOG_FILE, 'w') as f:
+def save_json_file(filepath, data):
+    with open(filepath, 'w') as f:
         json.dump(data, f, indent=4)
 
-passlog = load_passlog()
+config = load_json_file(CONFIG_FILE, {'admin_password': 'pass'})
+passlog = load_json_file(PASSLOG_FILE, {})
+auditlog = load_json_file(AUDITLOG_FILE, [])
+
+def log_audit(student_id, reason):
+    auditlog.append({
+        'time': datetime.datetime.now().strftime('%Y-%m-%d %H:%M:%S'),
+        'student_id': student_id,
+        'reason': reason
+    })
+    save_json_file(AUDITLOG_FILE, auditlog)
 
 passes = {
     '1': {'status': 'open', 'user': None, 'time_out': None},
     '2': {'status': 'open', 'user': None, 'time_out': None},
-    '3': {'status': 'open', 'user': None, 'time_out': None}  # admin-only pass
+    '3': {'status': 'open', 'user': None, 'time_out': None}
 }
 
 @app.route('/')
 def index():
-    current_period_display = get_current_period()
-    return render_template('index.html', passes=passes, current_period=current_period_display)
+    return render_template('index.html', passes=passes, current_period=get_current_period())
 
 @app.route('/passes')
 def get_passes():
@@ -69,80 +80,66 @@ def get_passes():
 
 @app.route('/check', methods=['POST'])
 def check():
-    student_id = request.form.get('student_id').strip()
-    message = ''
-    current_time = datetime.datetime.now().time()
+    student_id = request.form.get('student_id', '').strip()
+    current_period = get_current_period()
     current_day = datetime.datetime.now().strftime('%A')
     current_date = datetime.datetime.now().strftime('%Y-%m-%d')
-    current_period = get_current_period()
 
     try:
         student_row = masterlist_df[masterlist_df['ID'] == int(student_id)]
     except ValueError:
+        log_audit(student_id, 'Invalid ID format')
         return jsonify({'message': 'Invalid ID format.'})
 
     if student_row.empty:
-        message = 'Invalid ID number.'
-    else:
-        student_period = float(student_row.iloc[0]['Period'])
-        if current_period is None:
-            message = 'No active period right now.'
-        elif current_period != student_period:
-            message = f'You cannot leave during this period (current: {current_period}).'
-        else:
-            for pass_id, pass_data in passes.items():
-                if pass_data['user'] == student_id and pass_data['status'] == 'in use':
-                    checkin_time = datetime.datetime.now().strftime('%H:%M:%S')
-                    today_date = datetime.datetime.now().date()
-                    time_out_dt = datetime.datetime.combine(
-                        today_date,
-                        datetime.datetime.strptime(pass_data['time_out'], '%H:%M:%S').time()
-                    )
-                    time_in_dt = datetime.datetime.now()
-                    total_time = int((time_in_dt - time_out_dt).total_seconds())
-                    if total_time < 0:
-                        total_time = 0
+        log_audit(student_id, 'Invalid ID number')
+        return jsonify({'message': 'Invalid ID number.'})
 
-                    student_key = str(student_id)
-                    if student_key not in passlog:
-                        passlog[student_key] = []
-                    passlog[student_key].append({
-                        'Date': current_date,
-                        'DayOfWeek': current_day,
-                        'Period': str(current_period),
-                        'CheckoutTime': pass_data['time_out'],
-                        'CheckinTime': checkin_time,
-                        'TotalPassTime': total_time
-                    })
-                    save_passlog(passlog)
+    student_period = float(student_row.iloc[0]['Period'])
 
-                    passes[pass_id] = {'status': 'open', 'user': None, 'time_out': None}
-                    message = 'Returned successfully.'
-                    break
-            else:
-                for pass_id, pass_data in passes.items():
-                    if pass_data['status'] == 'open':
-                        checkout_time = datetime.datetime.now().strftime('%H:%M:%S')
-                        passes[pass_id] = {
-                            'status': 'in use',
-                            'user': student_id,
-                            'time_out': checkout_time
-                        }
-                        message = f'Pass {pass_id} claimed at {checkout_time}.'
-                        break
-                else:
-                    message = 'No passes available right now.'
+    if current_period is None:
+        log_audit(student_id, 'No active period')
+        return jsonify({'message': 'No active period right now.'})
 
-    return jsonify({'message': message})
+    if current_period != student_period:
+        log_audit(student_id, f'Invalid period: tried {current_period}, expected {student_period}')
+        return jsonify({'message': f'You cannot leave during this period (current: {current_period}).'})
+
+    # Check-in or check-out logic
+    for pass_id, pass_data in passes.items():
+        if pass_data['user'] == student_id and pass_data['status'] == 'in use':
+            checkin_time = datetime.datetime.now().strftime('%H:%M:%S')
+            time_out_dt = datetime.datetime.combine(datetime.datetime.today(), datetime.datetime.strptime(pass_data['time_out'], '%H:%M:%S').time())
+            total_time = int((datetime.datetime.now() - time_out_dt).total_seconds())
+            total_time = max(total_time, 0)
+            passlog.setdefault(student_id, []).append({
+                'Date': current_date,
+                'DayOfWeek': current_day,
+                'Period': str(current_period),
+                'CheckoutTime': pass_data['time_out'],
+                'CheckinTime': checkin_time,
+                'TotalPassTime': total_time,
+                'Note': pass_data.get('note', '')
+            })
+            save_json_file(PASSLOG_FILE, passlog)
+            passes[pass_id] = {'status': 'open', 'user': None, 'time_out': None}
+            return jsonify({'message': 'Returned successfully.'})
+
+    for pass_id, pass_data in passes.items():
+        if pass_data['status'] == 'open':
+            checkout_time = datetime.datetime.now().strftime('%H:%M:%S')
+            passes[pass_id] = {'status': 'in use', 'user': student_id, 'time_out': checkout_time}
+            return jsonify({'message': f'Pass {pass_id} claimed at {checkout_time}.'})
+
+    return jsonify({'message': 'No passes available right now.'})
 
 @app.route('/admin_login', methods=['GET', 'POST'])
 def admin_login():
     if request.method == 'POST':
-        if request.form['password'] == ADMIN_KEY:
+        if request.form['password'] == config.get('admin_password'):
             session['logged_in'] = True
             return redirect(url_for('admin_view'))
-        else:
-            return render_template('admin_login.html', error='Incorrect password.')
+        return render_template('admin_login.html', error='Incorrect password.')
     return render_template('admin_login.html')
 
 @app.route('/admin_logout')
@@ -156,45 +153,29 @@ def admin_view():
         return redirect(url_for('admin_login'))
 
     weekly_summary = []
-
     for student_id, records in passlog.items():
         student_row = masterlist_df[masterlist_df['ID'] == int(student_id)]
         student_name = student_row.iloc[0]['Name'] if not student_row.empty else 'Unknown'
+        total_time = sum(r['TotalPassTime'] for r in records)
         total_passes = len(records)
-        total_time_seconds = sum(entry['TotalPassTime'] for entry in records)
-
-        # Format total time as Xm Ys
-        total_minutes = total_time_seconds // 60
-        total_seconds = total_time_seconds % 60
-        total_time_str = f"{total_minutes}m {total_seconds}s"
-
-        # Average pass time formatted
-        if total_passes > 0:
-            avg_seconds_val = total_time_seconds // total_passes
-            avg_minutes = avg_seconds_val // 60
-            avg_seconds = avg_seconds_val % 60
-            avg_time_str = f"{avg_minutes}m {avg_seconds}s"
-        else:
-            avg_time_str = "0m 0s"
-
+        avg_time = total_time // total_passes if total_passes else 0
         passes_over_5_min = sum(1 for r in records if r['TotalPassTime'] > 300)
-
-        weekly_summary.append({
+        summary = {
             'student_id': student_id,
             'student_name': student_name,
-            'total_time': total_time_str,  # formatted string
+            'total_time': f"{total_time // 60}m {total_time % 60}s",
             'total_passes': total_passes,
-            'avg_time': avg_time_str,
+            'avg_time': f"{avg_time // 60}m {avg_time % 60}s",
             'passes_over_5_min': passes_over_5_min
-        })
+        }
+        weekly_summary.append(summary)
 
-    return render_template('admin.html', weekly_summary=weekly_summary)
+    return render_template('admin.html', weekly_summary=weekly_summary, audit_log=auditlog)
 
 @app.route('/admin_passes')
 def admin_passes():
     if not session.get('logged_in'):
         return jsonify({'error': 'Unauthorized'}), 403
-
     active_passes = []
     for pass_id, pass_data in passes.items():
         if pass_data['status'] == 'in use':
@@ -206,209 +187,122 @@ def admin_passes():
                 'student_name': student_name,
                 'time_out': pass_data['time_out']
             })
-
     return jsonify(active_passes)
-
-@app.route('/admin_summary')
-def admin_summary():
-    if not session.get('logged_in'):
-        return jsonify({'error': 'Unauthorized'}), 403
-
-    weekly_summary = []
-    for student_id, records in passlog.items():
-        student_row = masterlist_df[masterlist_df['ID'] == int(student_id)]
-        student_name = student_row.iloc[0]['Name'] if not student_row.empty else 'Unknown'
-        total_passes = len(records)
-        total_time = sum(entry['TotalPassTime'] for entry in records)
-
-        weekly_summary.append({
-            'student_id': student_id,
-            'student_name': student_name,
-            'total_passes': total_passes,
-            'total_time': total_time
-        })
-
-    return jsonify(weekly_summary)
 
 @app.route('/admin_checkin/<pass_id>', methods=['POST'])
 def admin_checkin(pass_id):
     if not session.get('logged_in'):
         return jsonify({'message': 'Unauthorized'}), 403
-
     if pass_id not in passes or passes[pass_id]['status'] != 'in use':
         return jsonify({'message': f'Pass {pass_id} is not currently out.'})
-
     student_id = passes[pass_id]['user']
     checkin_time = datetime.datetime.now().strftime('%H:%M:%S')
-    today_date = datetime.datetime.now().date()
-    time_out_dt = datetime.datetime.combine(
-        today_date,
-        datetime.datetime.strptime(passes[pass_id]['time_out'], '%H:%M:%S').time()
-    )
-    time_in_dt = datetime.datetime.now()
-    total_time = int((time_in_dt - time_out_dt).total_seconds())
-    if total_time < 0:
-        total_time = 0
-
-    current_period = get_current_period()
-
-    student_key = str(student_id)
-    if student_key not in passlog:
-        passlog[student_key] = []
-    passlog[student_key].append({
+    time_out_dt = datetime.datetime.combine(datetime.datetime.today(), datetime.datetime.strptime(passes[pass_id]['time_out'], '%H:%M:%S').time())
+    total_time = int((datetime.datetime.now() - time_out_dt).total_seconds())
+    total_time = max(total_time, 0)
+    passlog.setdefault(student_id, []).append({
         'Date': datetime.datetime.now().strftime('%Y-%m-%d'),
         'DayOfWeek': datetime.datetime.now().strftime('%A'),
-        'Period': str(current_period),
+        'Period': str(get_current_period()),
         'CheckoutTime': passes[pass_id]['time_out'],
         'CheckinTime': checkin_time,
-        'TotalPassTime': total_time
+        'TotalPassTime': total_time,
+        'Note': passes[pass_id].get('note', '')
     })
-    save_passlog(passlog)
-
+    save_json_file(PASSLOG_FILE, passlog)
     passes[pass_id] = {'status': 'open', 'user': None, 'time_out': None}
-
     return jsonify({'message': f'Pass {pass_id} manually checked in.'})
 
 @app.route('/admin_create_pass', methods=['POST'])
 def admin_create_pass():
     if not session.get('logged_in'):
         return jsonify({'message': 'Unauthorized'}), 403
-
     data = request.get_json()
     student_id = data.get('student_id')
-
     try:
         student_row = masterlist_df[masterlist_df['ID'] == int(student_id)]
     except ValueError:
         return jsonify({'message': 'Invalid ID format.'})
-
     if student_row.empty:
         return jsonify({'message': 'Student ID not found.'})
-
     if passes['3']['status'] == 'in use':
         return jsonify({'message': 'Admin pass is already in use.'})
-
-    checkout_time = datetime.datetime.now().strftime('%H:%M:%S')
-    passes['3'] = {
-        'status': 'in use',
-        'user': student_id,
-        'time_out': checkout_time
-    }
-
+    passes['3'] = {'status': 'in use', 'user': student_id, 'time_out': datetime.datetime.now().strftime('%H:%M:%S')}
     return jsonify({'message': f'Admin Pass 3 created for Student ID {student_id}.'})
+
+@app.route('/admin_change_password', methods=['POST'])
+def admin_change_password():
+    if not session.get('logged_in'):
+        return jsonify({'success': False, 'message': 'Unauthorized'}), 403
+    data = request.get_json()
+    if data.get('current_password') != config.get('admin_password'):
+        return jsonify({'success': False, 'message': 'Current password incorrect.'})
+    if data.get('new_password') != data.get('confirm_password'):
+        return jsonify({'success': False, 'message': 'New passwords do not match.'})
+    config['admin_password'] = data.get('new_password')
+    save_json_file(CONFIG_FILE, config)
+    return jsonify({'success': True, 'message': 'Password changed successfully!'})
+
+@app.route('/admin_add_note/<student_id>', methods=['POST'])
+def admin_add_note(student_id):
+    if not session.get('logged_in'):
+        return jsonify({'success': False, 'message': 'Unauthorized'}), 403
+
+    data = request.get_json()
+    note = data.get('note', '').strip()
+
+    if not note:
+        return jsonify({'success': False, 'message': 'Note cannot be empty.'})
+
+    # ✅ Look for active pass for this student
+    for pass_id, pass_data in passes.items():
+        if pass_data['user'] == student_id and pass_data['status'] == 'in use':
+            passes[pass_id]['note'] = note
+            return jsonify({'success': True, 'message': f'Note saved to active Pass {pass_id}.'})
+
+    return jsonify({'success': False, 'message': 'No active pass found for this student.'})
+
 
 @app.route('/admin_report')
 def admin_report():
     if not session.get('logged_in'):
         return jsonify({'error': 'Unauthorized'}), 403
-
     report_data = []
-
-    days_order = ['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday']
-
+    days = ['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday']
     for student_id, records in passlog.items():
         student_row = masterlist_df[masterlist_df['ID'] == int(student_id)]
         student_name = student_row.iloc[0]['Name'] if not student_row.empty else 'Unknown'
-
-        # Initialize day totals
-        day_totals = {day: 0 for day in days_order}
-
-        passes_over_5_min = 0
-        passes_over_10_min = 0
-
-        for record in records:
-            day = record.get('DayOfWeek', 'Unknown')
-            total_time = record.get('TotalPassTime', 0)
-
-            if day in day_totals:
-                day_totals[day] += total_time
-
-            if total_time > 300:
-                passes_over_5_min += 1
-            if total_time > 600:
-                passes_over_10_min += 1
-
-        # Convert seconds → minutes (rounded)
-        day_totals_str = []
-        for day in days_order:
-            minutes = day_totals[day] // 60
-            day_totals_str.append(f"{day[0]}:{minutes}")
-
-        report_row = {
-            'student_name': student_name,
-            'student_id': student_id,
-            'weekly_report': ' '.join(day_totals_str),
-            'passes_over_5_min': passes_over_5_min,
-            'passes_over_10_min': passes_over_10_min
-        }
-
-        report_data.append(report_row)
-
+        day_totals = {d: 0 for d in days}
+        over_5 = sum(1 for r in records if r['TotalPassTime'] > 300)
+        over_10 = sum(1 for r in records if r['TotalPassTime'] > 600)
+        for r in records:
+            if r['DayOfWeek'] in day_totals:
+                day_totals[r['DayOfWeek']] += r['TotalPassTime']
+        weekly = ' '.join(f"{d[0]}:{day_totals[d]//60}" for d in days)
+        report_data.append({'student_name': student_name, 'student_id': student_id, 'weekly_report': weekly, 'passes_over_5_min': over_5, 'passes_over_10_min': over_10})
     return render_template('admin_report.html', report_data=report_data)
 
 @app.route('/admin_report_csv')
 def admin_report_csv():
     if not session.get('logged_in'):
         return redirect(url_for('admin_login'))
-
-    import io
-    import csv
-    from flask import Response
-
-    days_order = ['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday']
-
-    # Prepare CSV in memory
+    days = ['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday']
     output = io.StringIO()
     writer = csv.writer(output)
-
-    # Write header
     writer.writerow(['Student Name', 'Student ID', 'Weekly Report', 'Passes Over 5 Min', 'Passes Over 10 Min'])
-
     for student_id, records in passlog.items():
         student_row = masterlist_df[masterlist_df['ID'] == int(student_id)]
         student_name = student_row.iloc[0]['Name'] if not student_row.empty else 'Unknown'
-
-        # Initialize day totals
-        day_totals = {day: 0 for day in days_order}
-
-        passes_over_5_min = 0
-        passes_over_10_min = 0
-
-        for record in records:
-            day = record.get('DayOfWeek', 'Unknown')
-            total_time = record.get('TotalPassTime', 0)
-
-            if day in day_totals:
-                day_totals[day] += total_time
-
-            if total_time > 300:
-                passes_over_5_min += 1
-            if total_time > 600:
-                passes_over_10_min += 1
-
-        # Convert seconds → minutes
-        day_totals_str = []
-        for day in days_order:
-            minutes = day_totals[day] // 60
-            day_totals_str.append(f"{day[0]}:{minutes}")
-
-        writer.writerow([
-            student_name,
-            student_id,
-            ' '.join(day_totals_str),
-            passes_over_5_min,
-            passes_over_10_min
-        ])
-
+        day_totals = {d: 0 for d in days}
+        over_5 = sum(1 for r in records if r['TotalPassTime'] > 300)
+        over_10 = sum(1 for r in records if r['TotalPassTime'] > 600)
+        for r in records:
+            if r['DayOfWeek'] in day_totals:
+                day_totals[r['DayOfWeek']] += r['TotalPassTime']
+        weekly = ' '.join(f"{d[0]}:{day_totals[d]//60}" for d in days)
+        writer.writerow([student_name, student_id, weekly, over_5, over_10])
     output.seek(0)
-
-    return Response(
-        output,
-        mimetype="text/csv",
-        headers={"Content-Disposition": "attachment; filename=weekly_report.csv"}
-    )
-
-
+    return Response(output, mimetype="text/csv", headers={"Content-Disposition": "attachment; filename=weekly_report.csv"})
 
 if __name__ == '__main__':
     app.run(host='0.0.0.0', port=5000, debug=True)
