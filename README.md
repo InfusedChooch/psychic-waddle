@@ -106,7 +106,7 @@ This app is a Flask-based web application to track student hall passes, includin
   "admin_username": "admin",
   "admin_password": "pass123",
   "theme_color": "#4a90e2",
-  "school_name": "School",
+  "school_name": "Jefferson Middle School",
   "logo_url": "/static/images/school_logo.png",
   "passes_available": 3,
   "period_schedule": { ... },
