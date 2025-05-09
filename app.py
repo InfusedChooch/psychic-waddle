@@ -81,9 +81,18 @@ def index():
                 for pass_id, pass_data in passes.items():
                     if pass_data['user'] == student_id and pass_data['status'] == 'in use':
                         checkin_time = datetime.datetime.now().strftime('%H:%M:%S')
-                        time_out_dt = datetime.datetime.strptime(pass_data['time_out'], '%H:%M:%S')
+
+                        # ✅ FIX: Use today’s date for both datetime objects
+                        today_date = datetime.datetime.now().date()
+                        time_out_dt = datetime.datetime.combine(
+                            today_date,
+                            datetime.datetime.strptime(pass_data['time_out'], '%H:%M:%S').time()
+                        )
                         time_in_dt = datetime.datetime.now()
+
                         total_time = int((time_in_dt - time_out_dt).total_seconds())
+                        if total_time < 0:
+                            total_time = 0  # Prevent negative if date rollover (e.g. past midnight)
 
                         period_key = str(current_period)
                         student_key = str(student_id)
