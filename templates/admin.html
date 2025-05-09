@@ -11,7 +11,8 @@
 </head>
 <body>
     <h1>Admin Panel</h1>
-    <a href="{{ url_for('admin_logout') }}">Logout</a>
+    <a href="{{ url_for('admin_logout') }}">Logout</a> |
+    <a href="{{ url_for('admin_report') }}">View Weekly Report</a>
 
     <h2>Create Admin Pass</h2>
     <form id="create-pass-form">
@@ -32,23 +33,24 @@
         </tr>
     </table>
 
-    <!-- 📝 ADD BACK WEEKLY SUMMARY TABLE -->
     <h2>Weekly Summary</h2>
     <table>
         <tr>
-            <th>Period</th>
-            <th>Student ID</th>
             <th>Student Name</th>
+            <th>Student ID</th>
+            <th>Total Time</th>
             <th>Total Passes</th>
-            <th>Total Time (seconds)</th>
+            <th>Average Pass Time</th>
+            <th>Passes Over 5 Min</th>
         </tr>
         {% for summary in weekly_summary %}
         <tr>
-            <td>{{ summary.period }}</td>
-            <td>{{ summary.student_id }}</td>
             <td>{{ summary.student_name }}</td>
-            <td>{{ summary.total_passes }}</td>
+            <td>{{ summary.student_id }}</td>
             <td>{{ summary.total_time }}</td>
+            <td>{{ summary.total_passes }}</td>
+            <td>{{ summary.avg_time }}</td>
+            <td>{{ summary.passes_over_5_min }}</td>
         </tr>
         {% endfor %}
     </table>

@@ -156,17 +156,36 @@ def admin_view():
         return redirect(url_for('admin_login'))
 
     weekly_summary = []
+
     for student_id, records in passlog.items():
         student_row = masterlist_df[masterlist_df['ID'] == int(student_id)]
         student_name = student_row.iloc[0]['Name'] if not student_row.empty else 'Unknown'
         total_passes = len(records)
-        total_time = sum(entry['TotalPassTime'] for entry in records)
+        total_time_seconds = sum(entry['TotalPassTime'] for entry in records)
+
+        # Format total time as Xm Ys
+        total_minutes = total_time_seconds // 60
+        total_seconds = total_time_seconds % 60
+        total_time_str = f"{total_minutes}m {total_seconds}s"
+
+        # Average pass time formatted
+        if total_passes > 0:
+            avg_seconds_val = total_time_seconds // total_passes
+            avg_minutes = avg_seconds_val // 60
+            avg_seconds = avg_seconds_val % 60
+            avg_time_str = f"{avg_minutes}m {avg_seconds}s"
+        else:
+            avg_time_str = "0m 0s"
+
+        passes_over_5_min = sum(1 for r in records if r['TotalPassTime'] > 300)
 
         weekly_summary.append({
             'student_id': student_id,
             'student_name': student_name,
+            'total_time': total_time_str,  # formatted string
             'total_passes': total_passes,
-            'total_time': total_time
+            'avg_time': avg_time_str,
+            'passes_over_5_min': passes_over_5_min
         })
 
     return render_template('admin.html', weekly_summary=weekly_summary)
@@ -277,6 +296,119 @@ def admin_create_pass():
     }
 
     return jsonify({'message': f'Admin Pass 3 created for Student ID {student_id}.'})
+
+@app.route('/admin_report')
+def admin_report():
+    if not session.get('logged_in'):
+        return jsonify({'error': 'Unauthorized'}), 403
+
+    report_data = []
+
+    days_order = ['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday']
+
+    for student_id, records in passlog.items():
+        student_row = masterlist_df[masterlist_df['ID'] == int(student_id)]
+        student_name = student_row.iloc[0]['Name'] if not student_row.empty else 'Unknown'
+
+        # Initialize day totals
+        day_totals = {day: 0 for day in days_order}
+
+        passes_over_5_min = 0
+        passes_over_10_min = 0
+
+        for record in records:
+            day = record.get('DayOfWeek', 'Unknown')
+            total_time = record.get('TotalPassTime', 0)
+
+            if day in day_totals:
+                day_totals[day] += total_time
+
+            if total_time > 300:
+                passes_over_5_min += 1
+            if total_time > 600:
+                passes_over_10_min += 1
+
+        # Convert seconds → minutes (rounded)
+        day_totals_str = []
+        for day in days_order:
+            minutes = day_totals[day] // 60
+            day_totals_str.append(f"{day[0]}:{minutes}")
+
+        report_row = {
+            'student_name': student_name,
+            'student_id': student_id,
+            'weekly_report': ' '.join(day_totals_str),
+            'passes_over_5_min': passes_over_5_min,
+            'passes_over_10_min': passes_over_10_min
+        }
+
+        report_data.append(report_row)
+
+    return render_template('admin_report.html', report_data=report_data)
+
+@app.route('/admin_report_csv')
+def admin_report_csv():
+    if not session.get('logged_in'):
+        return redirect(url_for('admin_login'))
+
+    import io
+    import csv
+    from flask import Response
+
+    days_order = ['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday']
+
+    # Prepare CSV in memory
+    output = io.StringIO()
+    writer = csv.writer(output)
+
+    # Write header
+    writer.writerow(['Student Name', 'Student ID', 'Weekly Report', 'Passes Over 5 Min', 'Passes Over 10 Min'])
+
+    for student_id, records in passlog.items():
+        student_row = masterlist_df[masterlist_df['ID'] == int(student_id)]
+        student_name = student_row.iloc[0]['Name'] if not student_row.empty else 'Unknown'
+
+        # Initialize day totals
+        day_totals = {day: 0 for day in days_order}
+
+        passes_over_5_min = 0
+        passes_over_10_min = 0
+
+        for record in records:
+            day = record.get('DayOfWeek', 'Unknown')
+            total_time = record.get('TotalPassTime', 0)
+
+            if day in day_totals:
+                day_totals[day] += total_time
+
+            if total_time > 300:
+                passes_over_5_min += 1
+            if total_time > 600:
+                passes_over_10_min += 1
+
+        # Convert seconds → minutes
+        day_totals_str = []
+        for day in days_order:
+            minutes = day_totals[day] // 60
+            day_totals_str.append(f"{day[0]}:{minutes}")
+
+        writer.writerow([
+            student_name,
+            student_id,
+            ' '.join(day_totals_str),
+            passes_over_5_min,
+            passes_over_10_min
+        ])
+
+    output.seek(0)
+
+    return Response(
+        output,
+        mimetype="text/csv",
+        headers={"Content-Disposition": "attachment; filename=weekly_report.csv"}
+    )
+
+
 
 if __name__ == '__main__':
     app.run(host='0.0.0.0', port=5000, debug=True)
