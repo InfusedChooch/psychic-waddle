@@ -1,4 +1,4 @@
-from flask import Flask, render_template, request
+from flask import Flask, render_template, request, jsonify
 import pandas as pd
 import json
 import datetime
@@ -11,7 +11,6 @@ PASSLOG_FILE = 'passlog.json'
 
 masterlist_df = pd.read_csv(MASTERLIST_FILE)
 
-# Correct period start and end times
 PERIOD_SCHEDULE = {
     0: {'start': '08:25', 'end': '08:30'},
     1: {'start': '08:33', 'end': '09:15'},
@@ -56,79 +55,86 @@ passes = {
     '2': {'status': 'open', 'user': None, 'time_out': None}
 }
 
-@app.route('/', methods=['GET', 'POST'])
+@app.route('/')
 def index():
+    current_period_display = get_current_period()
+    return render_template('index.html', passes=passes, current_period=current_period_display)
+
+@app.route('/passes')
+def get_passes():
+    return jsonify(passes)
+
+@app.route('/check', methods=['POST'])
+def check():
+    student_id = request.form.get('student_id').strip()
     message = ''
     current_time = datetime.datetime.now().time()
     current_day = datetime.datetime.now().strftime('%A')
     current_date = datetime.datetime.now().strftime('%Y-%m-%d')
-    current_period_display = get_current_period()
+    current_period = get_current_period()
 
-    if request.method == 'POST':
-        student_id = str(request.form['student_id']).strip()
+    try:
         student_row = masterlist_df[masterlist_df['ID'] == int(student_id)]
-        if student_row.empty:
-            message = 'Invalid ID number.'
-        else:
-            student_period = float(student_row.iloc[0]['Period'])
-            current_period = get_current_period()
+    except ValueError:
+        return jsonify({'message': 'Invalid ID format.'})
 
-            if current_period is None:
-                message = 'No active period right now.'
-            elif current_period != student_period:
-                message = f'You cannot leave during this period (current: {current_period}).'
+    if student_row.empty:
+        message = 'Invalid ID number.'
+    else:
+        student_period = float(student_row.iloc[0]['Period'])
+        if current_period is None:
+            message = 'No active period right now.'
+        elif current_period != student_period:
+            message = f'You cannot leave during this period (current: {current_period}).'
+        else:
+            for pass_id, pass_data in passes.items():
+                if pass_data['user'] == student_id and pass_data['status'] == 'in use':
+                    checkin_time = datetime.datetime.now().strftime('%H:%M:%S')
+                    today_date = datetime.datetime.now().date()
+                    time_out_dt = datetime.datetime.combine(
+                        today_date,
+                        datetime.datetime.strptime(pass_data['time_out'], '%H:%M:%S').time()
+                    )
+                    time_in_dt = datetime.datetime.now()
+                    total_time = int((time_in_dt - time_out_dt).total_seconds())
+                    if total_time < 0:
+                        total_time = 0
+
+                    period_key = str(current_period)
+                    student_key = str(student_id)
+
+                    if period_key not in passlog:
+                        passlog[period_key] = {}
+                    if student_key not in passlog[period_key]:
+                        passlog[period_key][student_key] = []
+
+                    passlog[period_key][student_key].append({
+                        'Date': current_date,
+                        'DayOfWeek': current_day,
+                        'CheckoutTime': pass_data['time_out'],
+                        'CheckinTime': checkin_time,
+                        'TotalPassTime': total_time
+                    })
+                    save_passlog(passlog)
+
+                    passes[pass_id] = {'status': 'open', 'user': None, 'time_out': None}
+                    message = 'Returned successfully.'
+                    break
             else:
                 for pass_id, pass_data in passes.items():
-                    if pass_data['user'] == student_id and pass_data['status'] == 'in use':
-                        checkin_time = datetime.datetime.now().strftime('%H:%M:%S')
-
-                        # ✅ FIX: Use today’s date for both datetime objects
-                        today_date = datetime.datetime.now().date()
-                        time_out_dt = datetime.datetime.combine(
-                            today_date,
-                            datetime.datetime.strptime(pass_data['time_out'], '%H:%M:%S').time()
-                        )
-                        time_in_dt = datetime.datetime.now()
-
-                        total_time = int((time_in_dt - time_out_dt).total_seconds())
-                        if total_time < 0:
-                            total_time = 0  # Prevent negative if date rollover (e.g. past midnight)
-
-                        period_key = str(current_period)
-                        student_key = str(student_id)
-
-                        if period_key not in passlog:
-                            passlog[period_key] = {}
-                        if student_key not in passlog[period_key]:
-                            passlog[period_key][student_key] = []
-
-                        passlog[period_key][student_key].append({
-                            'Date': current_date,
-                            'DayOfWeek': current_day,
-                            'CheckoutTime': pass_data['time_out'],
-                            'CheckinTime': checkin_time,
-                            'TotalPassTime': total_time
-                        })
-                        save_passlog(passlog)
-
-                        passes[pass_id] = {'status': 'open', 'user': None, 'time_out': None}
-                        message = 'Returned successfully.'
+                    if pass_data['status'] == 'open':
+                        checkout_time = datetime.datetime.now().strftime('%H:%M:%S')
+                        passes[pass_id] = {
+                            'status': 'in use',
+                            'user': student_id,
+                            'time_out': checkout_time
+                        }
+                        message = f'Pass {pass_id} claimed at {checkout_time}.'
                         break
                 else:
-                    for pass_id, pass_data in passes.items():
-                        if pass_data['status'] == 'open':
-                            checkout_time = datetime.datetime.now().strftime('%H:%M:%S')
-                            passes[pass_id] = {
-                                'status': 'in use',
-                                'user': student_id,
-                                'time_out': checkout_time
-                            }
-                            message = f'Pass {pass_id} claimed at {checkout_time}.'
-                            break
-                    else:
-                        message = 'No passes available right now.'
+                    message = 'No passes available right now.'
 
-    return render_template('index.html', passes=passes, message=message, current_period=current_period_display)
+    return jsonify({'message': message})
 
 @app.route('/admin')
 def admin_view():
