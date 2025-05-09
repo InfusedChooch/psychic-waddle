@@ -33,6 +33,7 @@ PERIOD_SCHEDULE = {
     9: {'start': '12:48', 'end': '13:30'},
     10: {'start': '13:33', 'end': '14:15'},
     11: {'start': '14:18', 'end': '15:00'},
+    12: {'start': '15:00', 'end' : '20:00'},
 }
 # This maps period numbers to their start and end times
 
@@ -144,6 +145,8 @@ def check():
 
     # === OTHERWISE CHECKING OUT ===
     for pass_id, pass_data in passes.items():
+        if pass_id == '3':
+            continue #skip for admin only
         if pass_data['status'] == 'open':
             checkout_time = datetime.datetime.now().strftime('%H:%M:%S')
             passes[pass_id] = {'status': 'in use', 'user': student_id, 'time_out': checkout_time}

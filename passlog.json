@@ -29,5 +29,92 @@
             "TotalPassTime": 8,
             "Note": "test"
         }
+    ],
+    "12": [
+        {
+            "Date": "2025-05-09",
+            "DayOfWeek": "Friday",
+            "Period": "12",
+            "CheckoutTime": "16:28:08",
+            "CheckinTime": "16:28:39",
+            "TotalPassTime": 31,
+            "Note": ""
+        },
+        {
+            "Date": "2025-05-09",
+            "DayOfWeek": "Friday",
+            "Period": "12",
+            "CheckoutTime": "16:28:40",
+            "CheckinTime": "16:28:51",
+            "TotalPassTime": 11,
+            "Note": ""
+        },
+        {
+            "Date": "2025-05-09",
+            "DayOfWeek": "Friday",
+            "Period": "12",
+            "CheckoutTime": "16:32:34",
+            "CheckinTime": "16:33:24",
+            "TotalPassTime": 50,
+            "Note": ""
+        },
+        {
+            "Date": "2025-05-09",
+            "DayOfWeek": "Friday",
+            "Period": "12",
+            "CheckoutTime": "16:35:21",
+            "CheckinTime": "16:35:46",
+            "TotalPassTime": 25,
+            "Note": "gay"
+        }
+    ],
+    "11": [
+        {
+            "Date": "2025-05-09",
+            "DayOfWeek": "Friday",
+            "Period": "12",
+            "CheckoutTime": "16:28:03",
+            "CheckinTime": "16:28:42",
+            "TotalPassTime": 39,
+            "Note": ""
+        },
+        {
+            "Date": "2025-05-09",
+            "DayOfWeek": "Friday",
+            "Period": "12",
+            "CheckoutTime": "16:32:42",
+            "CheckinTime": "16:33:16",
+            "TotalPassTime": 34,
+            "Note": ""
+        }
+    ],
+    "10": [
+        {
+            "Date": "2025-05-09",
+            "DayOfWeek": "Friday",
+            "Period": "12",
+            "CheckoutTime": "16:28:00",
+            "CheckinTime": "16:28:45",
+            "TotalPassTime": 45,
+            "Note": ""
+        },
+        {
+            "Date": "2025-05-09",
+            "DayOfWeek": "Friday",
+            "Period": "12",
+            "CheckoutTime": "16:32:32",
+            "CheckinTime": "16:33:05",
+            "TotalPassTime": 33,
+            "Note": ""
+        },
+        {
+            "Date": "2025-05-09",
+            "DayOfWeek": "Friday",
+            "Period": "12",
+            "CheckoutTime": "16:33:12",
+            "CheckinTime": "16:33:29",
+            "TotalPassTime": 17,
+            "Note": ""
+        }
     ]
 }
