@@ -90,26 +90,27 @@
 
     <div class="passes">
         {% for pass_id, pass_data in passes.items() %}
-            <div class="pass-box {{ 'occupied' if pass_data['status'] == 'in use' else 'free' }}">
-                {% if pass_data['status'] == 'in use' %}
-                    <div class="symbol">X</div>
-                    <div class="status-text">OUT @ {{ pass_data['time_out'] }}</div>
-                {% else %}
-                    <div class="symbol">O</div>
-                    <div class="status-text">Free</div>
-                {% endif %}
+            <div id="pass-{{ pass_id }}" class="pass-box {{ 'occupied' if pass_data['status'] == 'in use' else 'free' }}">
+                <div class="symbol">{{ 'X' if pass_data['status'] == 'in use' else 'O' }}</div>
+                <div class="status-text">
+                    {% if pass_data['status'] == 'in use' %}
+                        OUT @ {{ pass_data['time_out'] }}
+                    {% else %}
+                        Free
+                    {% endif %}
+                </div>
                 <div style="position: absolute; top: 5px; left: 5px; font-weight: bold;">Pass {{ pass_id }}</div>
             </div>
         {% endfor %}
     </div>
 
-    <form method="POST">
+    <form id="check-form">
         <label for="student_id">Type your Student ID #</label>
         <input type="text" id="student_id" name="student_id" required>
         <button type="submit">ENTER</button>
     </form>
 
-    <p class="message">{{ message }}</p>
+    <p class="message" id="message"></p>
 
     <div class="clock" id="clock">Loading time...</div>
 
@@ -126,6 +127,46 @@
         }
         setInterval(updateClock, 1000);
         updateClock();
+
+        function refreshPasses() {
+            fetch('/passes')
+                .then(response => response.json())
+                .then(data => {
+                    for (const [passId, passData] of Object.entries(data)) {
+                        const passBox = document.getElementById(`pass-${passId}`);
+                        if (passBox) {
+                            if (passData.status === 'in use') {
+                                passBox.classList.remove('free');
+                                passBox.classList.add('occupied');
+                                passBox.querySelector('.symbol').textContent = 'X';
+                                passBox.querySelector('.status-text').textContent = `OUT @ ${passData.time_out}`;
+                            } else {
+                                passBox.classList.remove('occupied');
+                                passBox.classList.add('free');
+                                passBox.querySelector('.symbol').textContent = 'O';
+                                passBox.querySelector('.status-text').textContent = 'Free';
+                            }
+                        }
+                    }
+                });
+        }
+        setInterval(refreshPasses, 5000);
+        refreshPasses();
+
+        document.getElementById('check-form').addEventListener('submit', function(e) {
+            e.preventDefault();
+            const formData = new FormData(this);
+            fetch('/check', {
+                method: 'POST',
+                body: formData
+            })
+            .then(res => res.json())
+            .then(data => {
+                document.getElementById('message').textContent = data.message;
+                refreshPasses();
+                this.reset();
+            });
+        });
     </script>
 </body>
 </html>
