@@ -4,30 +4,128 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Hall Pass Tracker</title>
-    <link rel="stylesheet" href="/static/style.css">
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            background: #fff;
+            margin: 0;
+            padding: 0;
+            text-align: center;
+        }
+        h1 {
+            font-size: 2.5em;
+            margin-top: 20px;
+        }
+        .passes {
+            display: flex;
+            justify-content: center;
+            gap: 50px;
+            margin: 30px;
+        }
+        .pass-box {
+            width: 150px;
+            height: 150px;
+            border: 3px solid #333;
+            border-radius: 10px;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            flex-direction: column;
+            font-size: 1.2em;
+            position: relative;
+        }
+        .pass-box.free {
+            background-color: #d4f5d4;
+        }
+        .pass-box.occupied {
+            background-color: #f7d4d4;
+        }
+        .pass-box .symbol {
+            font-size: 4em;
+        }
+        .pass-box .status-text {
+            margin-top: 10px;
+        }
+        form {
+            margin-top: 30px;
+        }
+        label {
+            display: block;
+            margin-bottom: 10px;
+            font-weight: bold;
+            font-size: 1.1em;
+        }
+        input[type="text"] {
+            padding: 10px;
+            font-size: 1em;
+            width: 200px;
+            border: 2px solid #333;
+            border-radius: 5px;
+        }
+        button {
+            padding: 10px 20px;
+            font-size: 1em;
+            background: #4a90e2;
+            color: white;
+            border: none;
+            border-radius: 5px;
+            margin-left: 10px;
+            cursor: pointer;
+        }
+        button:hover {
+            background: #357ab8;
+        }
+        .clock {
+            font-size: 2.5em;
+            margin-top: 40px;
+        }
+        .message {
+            margin-top: 20px;
+            font-weight: bold;
+        }
+    </style>
 </head>
 <body>
-    <h1>Hall Pass - Period #{{ current_period if current_period is not none else 'N/A' }}</h1>
+    <h1>Period #{{ current_period if current_period is not none else 'N/A' }} Hall Pass</h1>
 
-    <div class="pass-status">
+    <div class="passes">
         {% for pass_id, pass_data in passes.items() %}
-            <div class="pass {{ 'occupied' if pass_data['status'] == 'in use' else 'open' }}">
-                <h2>Pass {{ pass_id }}</h2>
+            <div class="pass-box {{ 'occupied' if pass_data['status'] == 'in use' else 'free' }}">
                 {% if pass_data['status'] == 'in use' %}
-                    <p>OUT @ {{ pass_data['time_out'] }}</p>
+                    <div class="symbol">X</div>
+                    <div class="status-text">OUT @ {{ pass_data['time_out'] }}</div>
                 {% else %}
-                    <p>AVAILABLE</p>
+                    <div class="symbol">O</div>
+                    <div class="status-text">Free</div>
                 {% endif %}
+                <div style="position: absolute; top: 5px; left: 5px; font-weight: bold;">Pass {{ pass_id }}</div>
             </div>
         {% endfor %}
     </div>
 
     <form method="POST">
-        <label for="student_id">Enter Student ID:</label>
+        <label for="student_id">Type your Student ID #</label>
         <input type="text" id="student_id" name="student_id" required>
-        <button type="submit">Enter</button>
+        <button type="submit">ENTER</button>
     </form>
 
     <p class="message">{{ message }}</p>
+
+    <div class="clock" id="clock">Loading time...</div>
+
+    <script>
+        function updateClock() {
+            const now = new Date();
+            let hours = now.getHours();
+            let minutes = now.getMinutes();
+            let seconds = now.getSeconds();
+            const ampm = hours >= 12 ? 'PM' : 'AM';
+            hours = hours % 12 || 12;
+            document.getElementById('clock').textContent =
+                `${hours.toString().padStart(2, '0')}:${minutes.toString().padStart(2, '0')}:${seconds.toString().padStart(2, '0')} ${ampm}`;
+        }
+        setInterval(updateClock, 1000);
+        updateClock();
+    </script>
 </body>
 </html>
