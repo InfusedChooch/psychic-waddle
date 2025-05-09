@@ -23,7 +23,7 @@ def load_json_file(filepath, default_value):
 
 config = load_json_file(CONFIG_FILE, {})
 
-app.secret_key = 'Duck_Goon_Slap00'
+app.secret_key = 'IloveGooningp00'
 
 # === FILE LOCATIONS ===
 MASTERLIST_FILE = 'masterlist.csv'
@@ -36,14 +36,13 @@ masterlist_df = pd.read_csv(MASTERLIST_FILE)
 PERIOD_SCHEDULE = config.get('period_schedule', {})
 
 # === INITIALIZE PASSES BASED ON CONFIGURED PASSES_AVAILABLE ===
-passes = {str(i+1): {'status': 'open', 'user': None, 'time_out': None} for i in range(1, config.get('passes_available', 3) + 1)}
+passes = {str(i): {'status': 'open', 'user': None, 'time_out': None} for i in range(1, config.get('passes_available', 3) + 1)}
 if '3' not in passes:
     passes['3'] = {'status': 'open', 'user': None, 'time_out': None}
 
 passlog = load_json_file(PASSLOG_FILE, {})
 auditlog = load_json_file(AUDITLOG_FILE, [])
 
-# === GET CURRENT PERIOD FUNCTION ===
 def get_current_period():
     now = datetime.datetime.now().time()
     for period, times in PERIOD_SCHEDULE.items():
@@ -95,14 +94,19 @@ def check():
         log_audit(student_id, 'Invalid ID number')
         return jsonify({'message': 'Invalid ID number.'})
 
-    student_period = float(student_row.iloc[0]['Period'])
+    student_period_value = student_row.iloc[0]['Period']
+    # Normalize period to match JSON string key
+    if float(student_period_value).is_integer():
+        student_period_str = str(int(student_period_value))
+    else:
+        student_period_str = str(student_period_value)
 
     if current_period is None:
         log_audit(student_id, 'No active period')
         return jsonify({'message': 'No active period right now.'})
 
-    if current_period != student_period:
-        log_audit(student_id, f'Invalid period: tried {current_period}, expected {student_period}')
+    if current_period != student_period_str:
+        log_audit(student_id, f'Invalid period: tried {current_period}, expected {student_period_str}')
         return jsonify({'message': f'You cannot leave during this period (current: {current_period}).'})
 
     for pass_id, pass_data in passes.items():

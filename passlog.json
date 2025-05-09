@@ -115,6 +115,22 @@
             "CheckinTime": "16:33:29",
             "TotalPassTime": 17,
             "Note": ""
+        },
+        {
+            "Date": "2025-05-09",
+            "DayOfWeek": "Friday",
+            "Period": "12",
+            "CheckoutTime": "19:14:53",
+            "CheckinTime": "19:15:05",
+            "TotalPassTime": 12
+        },
+        {
+            "Date": "2025-05-09",
+            "DayOfWeek": "Friday",
+            "Period": "12",
+            "CheckoutTime": "19:27:39",
+            "CheckinTime": "19:27:47",
+            "TotalPassTime": 8
         }
     ]
 }
